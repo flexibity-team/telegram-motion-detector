@@ -178,7 +178,10 @@ def MoDetWork():
 					if conf["use_telegram"]:
 						print "sending image"
 						if botHandler != None:
-							botHandler.sendMessage(chatId, text="motion!")
+							t = TempImage()
+							cv2.imwrite(t.path, frame)
+							botHandler.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
+							t.cleanup()
 						else:
 							print "sending none"
 
