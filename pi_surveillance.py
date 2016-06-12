@@ -5,8 +5,8 @@
 from pyimagesearch.tempimage import TempImage
 from dropbox.client import DropboxOAuth2FlowNoRedirect
 from dropbox.client import DropboxClient
-from picamera.array import PiRGBArray
-from picamera import PiCamera
+#from picamera.array import PiRGBArray
+#from picamera import PiCamera
 import argparse
 import warnings
 import datetime
@@ -40,10 +40,12 @@ if conf["use_dropbox"]:
 	print "[SUCCESS] dropbox account linked"
 
 # initialize the camera and grab a reference to the raw camera capture
-camera = PiCamera()
-camera.resolution = tuple(conf["resolution"])
-camera.framerate = conf["fps"]
-rawCapture = PiRGBArray(camera, size=tuple(conf["resolution"]))
+#camera = PiCamera()
+#camera.resolution = tuple(conf["resolution"])
+#camera.framerate = conf["fps"]
+#rawCapture = PiRGBArray(camera, size=tuple(conf["resolution"]))
+
+cap = cv2.VideoCapture(0)
 
 # allow the camera to warmup, then initialize the average frame, last
 # uploaded timestamp, and frame motion counter
@@ -54,10 +56,14 @@ lastUploaded = datetime.datetime.now()
 motionCounter = 0
 
 # capture frames from the camera
-for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+#for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=False):
+while(True):
 	# grab the raw NumPy array representing the image and initialize
 	# the timestamp and occupied/unoccupied text
-	frame = f.array
+	#frame = f.array
+	# Capture frame-by-frame
+	ret, frame = cap.read()
+	
 	timestamp = datetime.datetime.now()
 	text = "Unoccupied"
 
@@ -70,7 +76,7 @@ for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True
 	if avg is None:
 		print "[INFO] starting background model..."
 		avg = gray.copy().astype("float")
-		rawCapture.truncate(0)
+		#rawCapture.truncate(0)
 		continue
 
 	# accumulate the weighted average between the current frame and
@@ -84,7 +90,7 @@ for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True
 	thresh = cv2.threshold(frameDelta, conf["delta_thresh"], 255,
 		cv2.THRESH_BINARY)[1]
 	thresh = cv2.dilate(thresh, None, iterations=2)
-	(cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
+	(_, cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
 		cv2.CHAIN_APPROX_SIMPLE)
 
 	# loop over the contours
@@ -149,4 +155,4 @@ for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True
 			break
 
 	# clear the stream in preparation for the next frame
-	rawCapture.truncate(0)
+	# rawCapture.truncate(0)
