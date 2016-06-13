@@ -3,8 +3,6 @@
 
 # import the necessary packages
 from pyimagesearch.tempimage import TempImage
-from dropbox.client import DropboxOAuth2FlowNoRedirect
-from dropbox.client import DropboxClient
 #from picamera.array import PiRGBArray
 #from picamera import PiCamera
 import argparse
@@ -50,27 +48,6 @@ if conf["use_telegram"]:
 	start_handler = CommandHandler('start', start)
 	dispatcher.add_handler(start_handler)
 	print "bot polling started..."
-	
-#def telegram_work():
-#	updater.start_polling()
-#	updater.idle()
-	
-#if conf["use_telegram"]:
-#	telegram_thread = threading.Thread(target=telegram_work, args=())
-#	telegram_thread.start()
-
-
-# check to see if the Dropbox should be used
-if conf["use_dropbox"]:
-	# connect to dropbox and start the session authorization process
-	flow = DropboxOAuth2FlowNoRedirect(conf["dropbox_key"], conf["dropbox_secret"])
-	print "[INFO] Authorize this application: {}".format(flow.start())
-	authCode = raw_input("Enter auth code here: ").strip()
-
-	# finish the authorization and grab the Dropbox client
-	(accessToken, userID) = flow.finish(authCode)
-	client = DropboxClient(accessToken)
-	print "[SUCCESS] dropbox account linked"
 
 # initialize the camera and grab a reference to the raw camera capture
 #camera = PiCamera()
@@ -155,18 +132,6 @@ def MoDetWork():
 				# check to see if the number of frames with consistent motion is
 				# high enough
 				if motionCounter >= conf["min_motion_frames"]:
-					# check to see if dropbox sohuld be used
-					if conf["use_dropbox"]:
-						# write the image to temporary file
-						t = TempImage()
-						cv2.imwrite(t.path, frame)
-
-						# upload the image to Dropbox and cleanup the tempory image
-						print "[UPLOAD] {}".format(ts)
-						path = "{base_path}/{timestamp}.jpg".format(
-							base_path=conf["dropbox_base_path"], timestamp=ts)
-						client.put_file(path, open(t.path, "rb"))
-						t.cleanup()
 					
 					if conf["save_images"]:
 						print "[SAVE] {}".format(ts)
@@ -200,15 +165,12 @@ def MoDetWork():
 			cv2.imshow("Security Feed", frame)
 			key = cv2.waitKey(1) & 0xFF
 
-			# if the `q` key is pressed, break from the lop
+			# if the `q` key is pressed, break from the loop
 			if key == ord("q"):
 				break
 
 		# clear the stream in preparation for the next frame
 		# rawCapture.truncate(0)
-	
-#if conf["use_telegram"]:
-#	telegram_thread.join()
 
 mo_thread = threading.Thread(target=MoDetWork, args=())
 mo_thread.start()
