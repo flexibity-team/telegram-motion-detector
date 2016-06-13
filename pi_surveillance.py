@@ -41,7 +41,7 @@ def start(bot, update):
 if conf["use_telegram"]:
 	print "Initing telegram API..."
 	
-	updater = Updater(token='224166329:AAG9wcyrLp0vrnYveM6q6Ipcg-dVcp4WvPY')
+	updater = Updater(token=conf["telegram_token"]))
 	dispatcher = updater.dispatcher
 	botHandler = None
 	chatId = None
@@ -124,36 +124,37 @@ def MoDetWork():
 
 		# check to see if the room is occupied
 		if text == "Occupied":
-			# check to see if enough time has passed between uploads
-			if (timestamp - lastUploaded).seconds >= conf["min_upload_seconds"]:
-				# increment the motion counter
-				motionCounter += 1
-
-				# check to see if the number of frames with consistent motion is
-				# high enough
-				if motionCounter >= conf["min_motion_frames"]:
-					
-					if conf["save_images"]:
-						print "[SAVE] {}".format(ts)
-						path = "{base_path}/{timestamp}.jpg".format(
-							base_path=conf["save_base_path"], timestamp=ts)
-							
-						cv2.imwrite(path, frame)
+			
+			# increment the motion counter
+			motionCounter += 1
+			
+			# check to see if the number of frames with consistent motion is
+			# high enough
+			if motionCounter >= conf["min_motion_frames"]:
+				# check to see if enough time has passed between uploads
+				#if (timestamp - lastUploaded).seconds >= conf["min_upload_seconds"]:
+				
+				if conf["save_images"]:
+					print "[SAVE] {}".format(ts)
+					path = "{base_path}/{timestamp}.jpg".format(
+						base_path=conf["save_base_path"], timestamp=ts)
 						
-					if conf["use_telegram"]:
-						print "sending image"
-						if botHandler != None:
-							t = TempImage()
-							cv2.imwrite(t.path, frame)
-							botHandler.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
-							t.cleanup()
-						else:
-							print "sending none"
+					cv2.imwrite(path, frame)
+					
+				if conf["use_telegram"]:
+					print "sending image"
+					if botHandler != None:
+						t = TempImage()
+						cv2.imwrite(t.path, frame)
+						botHandler.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
+						t.cleanup()
+					else:
+						print "sending none"
 
-					# update the last uploaded timestamp and reset the motion
-					# counter
-					lastUploaded = timestamp
-					motionCounter = 0
+				# update the last uploaded timestamp and reset the motion
+				# counter
+				lastUploaded = timestamp
+				motionCounter = 0
 
 		# otherwise, the room is not occupied
 		else:
