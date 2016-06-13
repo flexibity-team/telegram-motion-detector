@@ -16,8 +16,7 @@ import cv2
 import threading
 
 #telegram
-from telegram.ext import Updater
-from telegram.ext import CommandHandler
+import telegram
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -40,14 +39,10 @@ def start(bot, update):
 
 if conf["use_telegram"]:
 	print "Initing telegram API..."
+	bot = telegram.Bot(token=conf["telegram_token"])
 	
-	updater = Updater(token=conf["telegram_token"]))
-	dispatcher = updater.dispatcher
-	botHandler = None
 	chatId = None
-	start_handler = CommandHandler('start', start)
-	dispatcher.add_handler(start_handler)
-	print "bot polling started..."
+	print "Telegram Bot API inited"
 
 # initialize the camera and grab a reference to the raw camera capture
 #camera = PiCamera()
@@ -63,18 +58,30 @@ def MoDetWork():
 	print "[INFO] warming up..."
 	time.sleep(conf["camera_warmup_time"])
 	avg = None
-	lastUploaded = datetime.datetime.now()
+	lastTelegramUpdate = datetime.datetime.now()
 	motionCounter = 0
 	# capture frames from the camera
 	#for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=False):
 	while(True):
+		timestamp = datetime.datetime.now()
+		
+		if (timestamp - lastTelegramUpdate).seconds >= conf["telegram_poll_period"]:
+			print "update"
+			global chatId
+			updates = bot.getUpdates()
+			print([u.message.text for u in updates])
+			while updates:
+				chatId = updates[-1].message.chat_id
+				updates = bot.getUpdates(updates[-1].update_id + 1)
+				
+			lastTelegramUpdate = timestamp
+			
 		# grab the raw NumPy array representing the image and initialize
 		# the timestamp and occupied/unoccupied text
 		#frame = f.array
 		# Capture frame-by-frame
 		ret, frame = cap.read()
 		
-		timestamp = datetime.datetime.now()
 		text = "Unoccupied"
 
 		# resize the frame, convert it to grayscale, and blur it
@@ -132,7 +139,6 @@ def MoDetWork():
 			# high enough
 			if motionCounter >= conf["min_motion_frames"]:
 				# check to see if enough time has passed between uploads
-				#if (timestamp - lastUploaded).seconds >= conf["min_upload_seconds"]:
 				
 				if conf["save_images"]:
 					print "[SAVE] {}".format(ts)
@@ -143,17 +149,15 @@ def MoDetWork():
 					
 				if conf["use_telegram"]:
 					print "sending image"
-					if botHandler != None:
+					if chatId != None:
 						t = TempImage()
 						cv2.imwrite(t.path, frame)
-						botHandler.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
+						bot.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
 						t.cleanup()
 					else:
 						print "sending none"
 
-				# update the last uploaded timestamp and reset the motion
-				# counter
-				lastUploaded = timestamp
+				# reset the motion counter
 				motionCounter = 0
 
 		# otherwise, the room is not occupied
@@ -173,11 +177,4 @@ def MoDetWork():
 		# clear the stream in preparation for the next frame
 		# rawCapture.truncate(0)
 
-mo_thread = threading.Thread(target=MoDetWork, args=())
-mo_thread.start()
-
-if conf["use_telegram"]:
-	updater.start_polling()
-	updater.idle()
-
-mo_thread.join();
+MoDetWork()
