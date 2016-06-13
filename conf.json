@@ -1,6 +1,5 @@
 {
 	"show_video": true,
-	"min_upload_seconds": 3.0,
 	"min_motion_frames": 8,
 	"camera_warmup_time": 2.5,
 	"delta_thresh": 5,
@@ -10,5 +9,6 @@
 	"save_images": false,
 	"save_base_path": ".",
 	"use_telegram": true,
-	"telegram_token": "224166329:AAG9wcyrLp0vrnYveM6q6Ipcg-dVcp4WvPY"
+	"telegram_token": "224166329:AAG9wcyrLp0vrnYveM6q6Ipcg-dVcp4WvPY",
+	"telegram_poll_period": 3.0
 }
