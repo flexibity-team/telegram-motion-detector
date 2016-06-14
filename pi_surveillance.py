@@ -13,67 +13,106 @@ import json
 import time
 import cv2
 
-import threading
+from signal import signal, SIGINT, SIGTERM, SIGABRT
 
 #telegram
-import telegram
+from telegram.error import NetworkError, Unauthorized
+from telegram.ext import Updater
+from telegram.ext import CommandHandler
+import logging
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-c", "--conf", required=True,
+ap.add_argument("-c", "--conf", required=False, default='conf.json',
 	help="path to the JSON configuration file")
 args = vars(ap.parse_args())
 
-# filter warnings, load the configuration and initialize the Dropbox
+# filter warnings, load the configuration and initialize Telegram
 # client
 warnings.filterwarnings("ignore")
 conf = json.load(open(args["conf"]))
-client = None
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-def start(bot, update):
+logger = logging.getLogger(__name__)
+
+frame = None
+
+def start(bot, u):
 	global chatId
-	chatId = update.message.chat_id
+	chatId = u.message.chat_id
 	bot.sendMessage(chat_id=chatId, text="Starting motion detector")
-	global botHandler
-	botHandler = bot
+	
+def stop(bot, u):
+	global chatId
+	bot.sendMessage(chat_id=u.message.chat_id, text="Stoppint detection")
+	chatId = None
+	
+def frame(bot, u):
+	#TODO: lock (and double buffer?) frame to keep motion region markup and OSD!
+	global frame
+	bot.sendMessage(chat_id=u.message.chat_id, text="Sending current frame")
+	sendFrame(frame, u.message.chat_id)
+
+def status(bot, u):	
+	global chatId
+	if (chatId is None):
+		bot.sendMessage(chat_id=u.message.chat_id, text="Motion notifications not enabled")
+	else:
+		bot.sendMessage(chat_id=u.message.chat_id, text="Sending Motion notifications to " + `chatId`)
+		
+def error(bot, update, error):
+    logger.warn('Update "%s" caused error "%s"' % (update, error))
 
 if conf["use_telegram"]:
-	print "Initing telegram API..."
-	bot = telegram.Bot(token=conf["telegram_token"])
+	logger.info( "Initing telegram API..." )
+	updater = Updater(token=conf["telegram_token"])
+	
+	dp = updater.dispatcher
+	dp.add_handler(CommandHandler('start', start))
+	dp.add_handler(CommandHandler('stop', stop))
+	dp.add_handler(CommandHandler('status', status))
+	dp.add_handler(CommandHandler('frame', frame))
+	dp.add_error_handler(error)
+
+	bot = updater.bot
 	
 	chatId = None
-	print "Telegram Bot API inited"
-
-# initialize the camera and grab a reference to the raw camera capture
-#camera = PiCamera()
-#camera.resolution = tuple(conf["resolution"])
-#camera.framerate = conf["fps"]
-#rawCapture = PiRGBArray(camera, size=tuple(conf["resolution"]))
+	updater.start_polling()
+	logger.info( "Telegram Bot API inited" )
 
 def sendFrame(frame, chatId):
-	if conf["use_telegram"]:
-		print "sending image"
+	try:
 		if chatId != None:
+			logger.info("sending image")
 			t = TempImage()
 			cv2.imwrite(t.path, frame)
 			bot.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
 			t.cleanup()
-		else:
-			print "sending none"
+	except NetworkError:
+		logger.error("network error")
+		sleep(1)
+	except Unauthorized:
+		# The user has removed or blocked the bot.
+		logger.error( "Unauth" )
+	except:
+		logger.error( "Unknown" )
+
+runMotionDet = True
 
 def MoDetWork():
+	global frame
 	cap = cv2.VideoCapture(0)
 
 	# allow the camera to warmup, then initialize the average frame, last
 	# uploaded timestamp, and frame motion counter
-	print "[INFO] warming up..."
+	logger.info("[INFO] warming up...")
 	time.sleep(conf["camera_warmup_time"])
 	avg = None
 	lastTelegramUpdate = datetime.datetime.now()
 	motionCounter = 0
 	# capture frames from the camera
 	#for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=False):
-	while(True):
+	while(runMotionDet):
 		timestamp = datetime.datetime.now()
 		
 		# grab the raw NumPy array representing the image and initialize
@@ -81,33 +120,6 @@ def MoDetWork():
 		#frame = f.array
 		# Capture frame-by-frame
 		ret, frame = cap.read()
-		
-		if (timestamp - lastTelegramUpdate).seconds >= conf["telegram_poll_period"]:
-			print "update"
-			global chatId
-			updates = bot.getUpdates()
-			print([u.message.text for u in updates])
-			while updates:
-				u = updates[-1]
-				updates = bot.getUpdates(u.update_id + 1)
-				if(u.message.text == "/frame"):
-					bot.sendMessage(chat_id=u.message.chat_id, text="Sending current frame")
-					sendFrame(frame, u.message.chat_id)
-				elif(u.message.text == "/stop"):
-					bot.sendMessage(chat_id=u.message.chat_id, text="Stoppint detection")
-					chatId = None
-				elif(u.message.text == "/start"):
-					chatId = u.message.chat_id
-					bot.sendMessage(chat_id=u.message.chat_id, text="Starting detection")
-				elif(u.message.text == "/status"):
-					if (chatId is None):
-						bot.sendMessage(chat_id=u.message.chat_id, text="Motion notifications not enabled")
-					else:
-						bot.sendMessage(chat_id=u.message.chat_id, text="Sending Motion notifications to " + `chatId`)
-				else:
-					bot.sendMessage(chat_id=u.message.chat_id, text="Unknown command")
-			
-			lastTelegramUpdate = timestamp
 		
 		text = "Unoccupied"
 
@@ -166,6 +178,7 @@ def MoDetWork():
 			# high enough
 			if motionCounter >= conf["min_motion_frames"]:
 				# check to see if enough time has passed between uploads
+				logger.info("Motion")
 				
 				if conf["save_images"]:
 					print "[SAVE] {}".format(ts)
@@ -174,7 +187,10 @@ def MoDetWork():
 						
 					cv2.imwrite(path, frame)
 					
-				sendFrame(frame, chatId)
+				if conf["use_telegram"]:	
+					sendFrame(frame, chatId) #TODO: use job queue
+					
+				#TODO: write video footage for motion episode!
 
 				# reset the motion counter
 				motionCounter = 0
@@ -196,4 +212,20 @@ def MoDetWork():
 		# clear the stream in preparation for the next frame
 		# rawCapture.truncate(0)
 
+def stopTelegram():
+	if conf["use_telegram"]:
+		logger.info( "stopping telegram" )
+		updater.stop()
+
+def signal_handler(signum, frame):
+	logger.warn("Abortint")
+	global runMotionDet
+	runMotionDet = False
+	
+stop_signals=(SIGINT, SIGTERM, SIGABRT)
+for sig in stop_signals:
+	signal(sig, signal_handler)
+
 MoDetWork()
+
+stopTelegram()
