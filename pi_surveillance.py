@@ -50,6 +50,17 @@ if conf["use_telegram"]:
 #camera.framerate = conf["fps"]
 #rawCapture = PiRGBArray(camera, size=tuple(conf["resolution"]))
 
+def sendFrame(frame, chatId):
+	if conf["use_telegram"]:
+		print "sending image"
+		if chatId != None:
+			t = TempImage()
+			cv2.imwrite(t.path, frame)
+			bot.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
+			t.cleanup()
+		else:
+			print "sending none"
+
 def MoDetWork():
 	cap = cv2.VideoCapture(0)
 
@@ -65,22 +76,38 @@ def MoDetWork():
 	while(True):
 		timestamp = datetime.datetime.now()
 		
+		# grab the raw NumPy array representing the image and initialize
+		# the timestamp and occupied/unoccupied text
+		#frame = f.array
+		# Capture frame-by-frame
+		ret, frame = cap.read()
+		
 		if (timestamp - lastTelegramUpdate).seconds >= conf["telegram_poll_period"]:
 			print "update"
 			global chatId
 			updates = bot.getUpdates()
 			print([u.message.text for u in updates])
 			while updates:
-				chatId = updates[-1].message.chat_id
-				updates = bot.getUpdates(updates[-1].update_id + 1)
-				
-			lastTelegramUpdate = timestamp
+				u = updates[-1]
+				updates = bot.getUpdates(u.update_id + 1)
+				if(u.message.text == "/frame"):
+					bot.sendMessage(chat_id=u.message.chat_id, text="Sending current frame")
+					sendFrame(frame, u.message.chat_id)
+				elif(u.message.text == "/stop"):
+					bot.sendMessage(chat_id=u.message.chat_id, text="Stoppint detection")
+					chatId = None
+				elif(u.message.text == "/start"):
+					chatId = u.message.chat_id
+					bot.sendMessage(chat_id=u.message.chat_id, text="Starting detection")
+				elif(u.message.text == "/status"):
+					if (chatId is None):
+						bot.sendMessage(chat_id=u.message.chat_id, text="Motion notifications not enabled")
+					else:
+						bot.sendMessage(chat_id=u.message.chat_id, text="Sending Motion notifications to " + `chatId`)
+				else:
+					bot.sendMessage(chat_id=u.message.chat_id, text="Unknown command")
 			
-		# grab the raw NumPy array representing the image and initialize
-		# the timestamp and occupied/unoccupied text
-		#frame = f.array
-		# Capture frame-by-frame
-		ret, frame = cap.read()
+			lastTelegramUpdate = timestamp
 		
 		text = "Unoccupied"
 
@@ -147,15 +174,7 @@ def MoDetWork():
 						
 					cv2.imwrite(path, frame)
 					
-				if conf["use_telegram"]:
-					print "sending image"
-					if chatId != None:
-						t = TempImage()
-						cv2.imwrite(t.path, frame)
-						bot.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
-						t.cleanup()
-					else:
-						print "sending none"
+				sendFrame(frame, chatId)
 
 				# reset the motion counter
 				motionCounter = 0
