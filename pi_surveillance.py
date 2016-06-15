@@ -10,6 +10,7 @@ import warnings
 import datetime
 import json
 import time
+from time import sleep
 import cv2
 
 from signal import signal, SIGINT, SIGTERM, SIGABRT
@@ -43,7 +44,7 @@ def start(bot, u):
 	
 def stop(bot, u):
 	global chatId
-	bot.sendMessage(chat_id=u.message.chat_id, text="Stoppint detection")
+	bot.sendMessage(chat_id=u.message.chat_id, text="Stopping detection")
 	chatId = None
 	
 def frame(bot, u):
@@ -79,20 +80,28 @@ if conf["use_telegram"]:
 	updater.start_polling()
 	logger.info( "Telegram Bot API inited" )
 
-def sendFrame(frame, chatId):
+def sendFrame(frame, chat_id = None):
+	global chatId #TODO: refactor this and all globals
+	
+	if chat_id is None:
+		chat_id = chatId
+			
+	lastTelegramUpdate = datetime.datetime.now()
 	try:
-		if chatId != None:
-			logger.info("sending image")
+		if chat_id != None:
+			logger.debug("sending image")
 			t = TempImage()
 			cv2.imwrite(t.path, frame)
-			bot.sendPhoto(chat_id=chatId, photo=open(t.path, 'rb'))
+			bot.sendPhoto(chat_id=chat_id, photo=open(t.path, 'rb'))
 			t.cleanup()
 	except NetworkError:
 		logger.error("network error")
 		sleep(1)
 	except Unauthorized:
 		# The user has removed or blocked the bot.
-		logger.error( "Unauth" )
+		if chat_id is None: #it was global chatId (motion feed), reset it
+			chatId = None
+		logger.error( "Unauth. User has removed bot" )
 	except:
 		logger.error( "Unknown" )
 
@@ -104,13 +113,11 @@ def MoDetWork():
 
 	# allow the camera to warmup, then initialize the average frame, last
 	# uploaded timestamp, and frame motion counter
-	logger.info("[INFO] warming up...")
+	logger.info("warming up...")
 	time.sleep(conf["camera_warmup_time"])
 	avg = None
-	lastTelegramUpdate = datetime.datetime.now()
 	motionCounter = 0
 	# capture frames from the camera
-	#for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=False):
 	while(runMotionDet):
 		timestamp = datetime.datetime.now()
 		
@@ -128,9 +135,8 @@ def MoDetWork():
 
 		# if the average frame is None, initialize it
 		if avg is None:
-			print "[INFO] starting background model..."
+			logger.info( "starting background model..." )
 			avg = gray.copy().astype("float")
-			#rawCapture.truncate(0)
 			continue
 
 		# accumulate the weighted average between the current frame and
@@ -156,11 +162,11 @@ def MoDetWork():
 			# compute the bounding box for the contour, draw it on the frame,
 			# and update the text
 			(x, y, w, h) = cv2.boundingRect(c)
-			cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+			cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
 			text = "Occupied"
 
 		# draw the text and timestamp on the frame
-		ts = timestamp.strftime("%H:%m:%S-%d.%m.%Y")
+		ts = timestamp.strftime("%Y.%m.%d-%H:%m:%S.%f")
 		cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 		cv2.putText(frame, ts, (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX,
@@ -176,7 +182,7 @@ def MoDetWork():
 			# high enough
 			if motionCounter >= conf["min_motion_frames"]:
 				# check to see if enough time has passed between uploads
-				logger.info("Motion")
+				logger.debug("Motion")
 				
 				if conf["save_images"]:
 					print "[SAVE] {}".format(ts)
@@ -186,7 +192,7 @@ def MoDetWork():
 					cv2.imwrite(path, frame)
 					
 				if conf["use_telegram"]:	
-					sendFrame(frame, chatId) #TODO: use job queue
+					sendFrame(frame) #TODO: use job queue
 					
 				#TODO: write video footage for motion episode!
 
@@ -207,16 +213,13 @@ def MoDetWork():
 			if key == ord("q"):
 				break
 
-		# clear the stream in preparation for the next frame
-		# rawCapture.truncate(0)
-
 def stopTelegram():
 	if conf["use_telegram"]:
 		logger.info( "stopping telegram" )
 		updater.stop()
 
 def signal_handler(signum, frame):
-	logger.warn("Abortint")
+	logger.warn("Aborting")
 	global runMotionDet
 	runMotionDet = False
 	
