@@ -40,7 +40,7 @@ frame = None
 def start(bot, u):
 	global chatId
 	chatId = u.message.chat_id
-	bot.sendMessage(chat_id=chatId, text="Starting motion detector")
+	bot.sendMessage(chat_id=chatId, text="Starting motion detector") #TODO: add authorization phase
 	
 def stop(bot, u):
 	global chatId
