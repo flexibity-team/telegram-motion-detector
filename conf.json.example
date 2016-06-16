@@ -8,7 +8,8 @@
 	"min_area": 700,
 	"save_images": false,
 	"save_base_path": ".",
-	"use_telegram": true,
-	"telegram_token": "TELEGRAM_AUTH_TOKEN",
-	"telegram_poll_period": 30.0
+	"telegram": {
+		"enabled": true,
+		"token": "TELEGRAM_AUTH_TOKEN"
+	}
 }

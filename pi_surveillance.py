@@ -3,8 +3,7 @@
 
 # import the necessary packages
 from pyimagesearch.tempimage import TempImage
-#from picamera.array import PiRGBArray
-#from picamera import PiCamera
+
 import argparse
 import warnings
 import datetime
@@ -15,11 +14,9 @@ import cv2
 
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 
-#telegram
-from telegram.error import NetworkError, Unauthorized
-from telegram.ext import Updater
-from telegram.ext import CommandHandler
 import logging
+
+from TelegramMotionBot import Bot
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -37,73 +34,9 @@ logger = logging.getLogger(__name__)
 
 frame = None
 
-def start(bot, u):
-	global chatId
-	chatId = u.message.chat_id
-	bot.sendMessage(chat_id=chatId, text="Starting motion detector") #TODO: add authorization phase
-	
-def stop(bot, u):
-	global chatId
-	bot.sendMessage(chat_id=u.message.chat_id, text="Stopping detection")
-	chatId = None
-	
-def frame(bot, u):
-	#TODO: lock (and double buffer?) frame to keep motion region markup and OSD!
-	global frame
-	bot.sendMessage(chat_id=u.message.chat_id, text="Sending current frame")
-	sendFrame(frame, u.message.chat_id)
+bot = Bot(conf["telegram"])
 
-def status(bot, u):	
-	global chatId
-	if (chatId is None):
-		bot.sendMessage(chat_id=u.message.chat_id, text="Motion notifications not enabled")
-	else:
-		bot.sendMessage(chat_id=u.message.chat_id, text="Sending Motion notifications to " + `chatId`)
-		
-def error(bot, update, error):
-    logger.warn('Update "%s" caused error "%s"' % (update, error))
-
-if conf["use_telegram"]:
-	logger.info( "Initing telegram API..." )
-	updater = Updater(token=conf["telegram_token"])
-	
-	dp = updater.dispatcher
-	dp.add_handler(CommandHandler('start', start))
-	dp.add_handler(CommandHandler('stop', stop))
-	dp.add_handler(CommandHandler('status', status))
-	dp.add_handler(CommandHandler('frame', frame))
-	dp.add_error_handler(error)
-
-	bot = updater.bot
-	
-	chatId = None
-	updater.start_polling()
-	logger.info( "Telegram Bot API inited" )
-
-def sendFrame(frame, chat_id = None):
-	global chatId #TODO: refactor this and all globals
-	
-	if chat_id is None:
-		chat_id = chatId
-			
-	lastTelegramUpdate = datetime.datetime.now()
-	try:
-		if chat_id != None:
-			logger.debug("sending image")
-			t = TempImage()
-			cv2.imwrite(t.path, frame)
-			bot.sendPhoto(chat_id=chat_id, photo=open(t.path, 'rb'))
-			t.cleanup()
-	except NetworkError:
-		logger.error("network error")
-		sleep(1)
-	except Unauthorized:
-		# The user has removed or blocked the bot.
-		if chat_id is None: #it was global chatId (motion feed), reset it
-			chatId = None
-		logger.error( "Unauth. User has removed bot" )
-	except:
-		logger.error( "Unknown" )
+#if conf["use_telegram"]:
 
 runMotionDet = True
 
@@ -120,13 +53,13 @@ def MoDetWork():
 	# capture frames from the camera
 	while(runMotionDet):
 		timestamp = datetime.datetime.now()
-		
+
 		# grab the raw NumPy array representing the image and initialize
 		# the timestamp and occupied/unoccupied text
 		#frame = f.array
 		# Capture frame-by-frame
 		ret, frame = cap.read()
-		
+
 		text = "Unoccupied"
 
 		# resize the frame, convert it to grayscale, and blur it
@@ -174,26 +107,26 @@ def MoDetWork():
 
 		# check to see if the room is occupied
 		if text == "Occupied":
-			
+
 			# increment the motion counter
 			motionCounter += 1
-			
+
 			# check to see if the number of frames with consistent motion is
 			# high enough
 			if motionCounter >= conf["min_motion_frames"]:
 				# check to see if enough time has passed between uploads
 				logger.debug("Motion")
-				
+
 				if conf["save_images"]:
 					print "[SAVE] {}".format(ts)
 					path = "{base_path}/{timestamp}.jpg".format(
 						base_path=conf["save_base_path"], timestamp=ts)
-						
+
 					cv2.imwrite(path, frame)
-					
-				if conf["use_telegram"]:	
-					sendFrame(frame) #TODO: use job queue
-					
+
+				#if conf["use_telegram"]:
+				#	sendFrame(frame) #TODO: use job queue
+
 				#TODO: write video footage for motion episode!
 
 				# reset the motion counter
@@ -213,20 +146,15 @@ def MoDetWork():
 			if key == ord("q"):
 				break
 
-def stopTelegram():
-	if conf["use_telegram"]:
-		logger.info( "stopping telegram" )
-		updater.stop()
-
 def signal_handler(signum, frame):
 	logger.warn("Aborting")
 	global runMotionDet
 	runMotionDet = False
-	
+
 stop_signals=(SIGINT, SIGTERM, SIGABRT)
 for sig in stop_signals:
 	signal(sig, signal_handler)
 
 MoDetWork()
 
-stopTelegram()
+bot.stop()
