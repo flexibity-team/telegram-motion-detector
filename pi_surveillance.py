@@ -36,8 +36,6 @@ frame = None
 
 bot = Bot(conf["telegram"])
 
-#if conf["use_telegram"]:
-
 runMotionDet = True
 
 def MoDetWork():
@@ -104,6 +102,9 @@ def MoDetWork():
 			cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 		cv2.putText(frame, ts, (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX,
 			0.35, (0, 0, 255), 1)
+			
+		if bot.sendSingleFrame == True:
+			bot.sendFrame(frame)
 
 		# check to see if the room is occupied
 		if text == "Occupied":
@@ -124,8 +125,7 @@ def MoDetWork():
 
 					cv2.imwrite(path, frame)
 
-				#if conf["use_telegram"]:
-				#	sendFrame(frame) #TODO: use job queue
+				bot.sendFrame(frame)
 
 				#TODO: write video footage for motion episode!
 
