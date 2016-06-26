@@ -97,12 +97,12 @@ def MoDetWork():
 			text = "Occupied"
 
 		# draw the text and timestamp on the frame
-		ts = timestamp.strftime("%Y.%m.%d-%H:%m:%S.%f")
+		ts = timestamp.strftime("%Y.%m.%d-%H:%M:%S.%f")
 		cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 		cv2.putText(frame, ts, (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX,
 			0.35, (0, 0, 255), 1)
-			
+
 		if bot.sendSingleFrame == True:
 			bot.sendFrame(frame)
 
