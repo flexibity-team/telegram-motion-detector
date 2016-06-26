@@ -1,0 +1,16 @@
+{
+	"show_video": true,
+	"min_motion_frames": 7,
+	"camera_warmup_time": 2.5,
+	"delta_thresh": 5,
+	"resolution": [640, 480],
+	"fps": 15,
+	"min_area": 700,
+	"save_images": false,
+	"save_base_path": ".",
+	"telegram": {
+		"enabled": true,
+		"token": "TELEGRAM_AUTH_TOKEN",
+		"password_hash": "YOUR_PASSWORD_HASH"
+	}
+}
