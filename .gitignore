@@ -1,2 +1,3 @@
 *.pyc
 get-pip.py
+conf.json

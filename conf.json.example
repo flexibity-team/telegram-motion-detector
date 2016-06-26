@@ -8,7 +8,9 @@
 	"min_area": 700,
 	"save_images": false,
 	"save_base_path": ".",
-	"use_telegram": true,
-	"telegram_token": "224166329:AAG9wcyrLp0vrnYveM6q6Ipcg-dVcp4WvPY",
-	"telegram_poll_period": 30.0
+	"telegram": {
+		"enabled": true,
+		"token": "TELEGRAM_AUTH_TOKEN",
+		"password_hash": "YOUR_PASSWORD_HASH"
+	}
 }
