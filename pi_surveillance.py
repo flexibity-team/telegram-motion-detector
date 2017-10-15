@@ -34,14 +34,20 @@ logger = logging.getLogger(__name__)
 
 frame = None
 
+# returns OpenCV VideoCapture property id given, e.g., "FPS"
+def capPropId(prop):
+  return getattr(cv2 if OPCV3 else cv2.cv,
+    ("" if OPCV3 else "CV_") + "CAP_PROP_" + prop)
+
 bot = Bot(conf["telegram"])
 
 runMotionDet = True
 
 def MoDetWork():
 	global frame
-	cap = cv2.VideoCapture(0)
-
+	cap = cv2.VideoCapture(1)
+	cap.set( cv2.CAP_PROP_FRAME_WIDTH, 1280)
+	cap.set( cv2.CAP_PROP_FRAME_HEIGHT, 720)
 	# allow the camera to warmup, then initialize the average frame, last
 	# uploaded timestamp, and frame motion counter
 	logger.info("warming up...")
